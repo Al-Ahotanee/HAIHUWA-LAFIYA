@@ -23,9 +23,25 @@ from app.referrals.router import router as referrals_router
 from app.reports.router import router as reports_router
 
 
+from app.database import Base, engine
+import logging
+
+logger = logging.getLogger("uvicorn.error")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application startup and shutdown hooks."""
+    """Application startup: ensure tables and seed initial users in PostgreSQL."""
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database schema validated and tables verified.")
+
+        from app.seeds import seed_reference_data
+        await seed_reference_data()
+        logger.info("Reference data and user accounts verified.")
+    except Exception as e:
+        logger.error(f"Error during schema initialization: {e}")
     yield
 
 
@@ -52,6 +68,15 @@ def create_app() -> FastAPI:
 
     # Custom exception handling
     app.add_exception_handler(AppException, app_exception_handler)
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request, exc):
+        logger.error(f"Unhandled server error on {request.method} {request.url.path}: {exc}", exc_info=True)
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "An internal server error occurred", "code": "INTERNAL_SERVER_ERROR", "error": str(exc)},
+        )
 
     # Health check
     @app.get("/health", tags=["Health"], response_model=HealthResponse)
