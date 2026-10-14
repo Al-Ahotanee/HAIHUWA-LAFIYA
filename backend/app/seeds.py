@@ -355,7 +355,7 @@ async def seed_reference_data():
                     pregnancy_id=deliv_preg.id,
                     facility_id=phc.id,
                     delivery_date=date.today() - timedelta(days=2),
-                    delivery_time=time(14, 30),
+                    delivery_time="14:30",
                     delivery_mode="spontaneous_vaginal",
                     place_of_delivery="facility",
                     maternal_outcome="alive_well",
