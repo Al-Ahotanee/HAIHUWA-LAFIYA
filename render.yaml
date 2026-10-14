@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+services:
+  # ============================================================================
+  # BACKEND SERVICE (Python / FastAPI)
+  # ============================================================================
+  - type: web
+    name: haihuwa-backend
+    runtime: python
+    region: frankfurt
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    preDeployCommand: alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false # Neon PostgreSQL pooled connection string
+      - key: DATABASE_URL_DIRECT
+        sync: false # Neon PostgreSQL direct connection string for migrations
+      - key: CORS_ORIGINS
+        value: https://haihuwa-frontend.onrender.com
+      - key: ALLOWED_HOSTS
+        value: haihuwa-backend.onrender.com
+
+  # ============================================================================
+  # FRONTEND SERVICE (Next.js Static Export / SPA)
+  # ============================================================================
+  - type: web
+    name: haihuwa-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./out
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://haihuwa-backend.onrender.com
