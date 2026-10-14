@@ -205,7 +205,7 @@ export default function LoginPage() {
           </p>
           <div className="mt-2 flex items-center justify-center gap-1 text-[11px] text-muted-foreground/80">
             <Activity className="h-3 w-3 text-emerald-600" />
-            <span>Kaduna, Kano & Katsina Primary Health Care Boards</span>
+            <span>Northern Nigeria State Primary Health Care Development Agencies</span>
           </div>
         </div>
       </div>

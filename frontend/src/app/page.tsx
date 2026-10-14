@@ -277,7 +277,7 @@ export default function LandingPage() {
             <span className="font-semibold text-foreground">{APP_NAME} — 360° Motherhood Initiative</span>
           </div>
           <div>
-            Supporting Kano, Kaduna, and Katsina Primary Health Care Development Agencies.
+            Supporting Northern Nigeria State Primary Health Care Development Agencies.
           </div>
           <div>
             Built for production readiness on Neon PostgreSQL and Render.

@@ -13,13 +13,16 @@ from app.auth.dependencies import get_current_user, require_roles
 from app.auth.models import User
 from app.common.enums import UserRole
 from app.database import get_db
-from app.models import HealthFacility, LGA, Organisation, State, Ward
+from app.models import Community, HealthFacility, LGA, Organisation, State, Ward
 from app.organisations.schemas import (
+    CommunityCreate,
+    CommunityResponse,
     FacilityCreate,
     FacilityResponse,
     LGACreate,
     LGAResponse,
     OrganisationResponse,
+    StateCreate,
     StateResponse,
     WardCreate,
     WardResponse,
@@ -34,9 +37,23 @@ async def list_states(
     _current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[StateResponse]:
-    """List all states."""
+    """List all states across Northern Nigeria."""
     result = await db.execute(select(State).order_by(State.name))
     return [StateResponse.model_validate(s) for s in result.scalars().all()]
+
+
+@router.post("/locations/states", response_model=StateResponse, status_code=status.HTTP_201_CREATED)
+async def create_state(
+    data: StateCreate,
+    _current_user: Annotated[User, Depends(require_roles([UserRole.SUPER_ADMIN, UserRole.PROGRAMME_MANAGER]))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> StateResponse:
+    """Create a new State jurisdiction."""
+    state = State(name=data.name.strip(), code=data.code.strip().toUpperCase() if hasattr(data.code, 'toUpperCase') else data.code.strip().upper())
+    db.add(state)
+    await db.commit()
+    await db.refresh(state)
+    return StateResponse.model_validate(state)
 
 
 # LGAs
@@ -61,7 +78,7 @@ async def create_lga(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> LGAResponse:
     """Create a new Local Government Area."""
-    lga = LGA(state_id=data.state_id, name=data.name, code=data.code.upper())
+    lga = LGA(state_id=data.state_id, name=data.name.strip(), code=data.code.strip().upper())
     db.add(lga)
     await db.commit()
     await db.refresh(lga)
@@ -90,11 +107,40 @@ async def create_ward(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> WardResponse:
     """Create a new Ward."""
-    ward = Ward(lga_id=data.lga_id, name=data.name, code=data.code.upper())
+    ward = Ward(lga_id=data.lga_id, name=data.name.strip(), code=data.code.strip().upper())
     db.add(ward)
     await db.commit()
     await db.refresh(ward)
     return WardResponse.model_validate(ward)
+
+
+# Communities / Towns / Villages
+@router.get("/locations/communities", response_model=list[CommunityResponse])
+async def list_communities(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    ward_id: uuid.UUID | None = None,
+) -> list[CommunityResponse]:
+    """List communities/villages/towns, optionally filtered by Ward."""
+    query = select(Community).order_by(Community.name)
+    if ward_id:
+        query = query.where(Community.ward_id == ward_id)
+    result = await db.execute(query)
+    return [CommunityResponse.model_validate(c) for c in result.scalars().all()]
+
+
+@router.post("/locations/communities", response_model=CommunityResponse, status_code=status.HTTP_201_CREATED)
+async def create_community(
+    data: CommunityCreate,
+    _current_user: Annotated[User, Depends(require_roles([UserRole.SUPER_ADMIN, UserRole.PROGRAMME_MANAGER, UserRole.LGA_COORDINATOR]))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CommunityResponse:
+    """Create a new town, village, or community within a ward."""
+    community = Community(ward_id=data.ward_id, name=data.name.strip())
+    db.add(community)
+    await db.commit()
+    await db.refresh(community)
+    return CommunityResponse.model_validate(community)
 
 
 # Health Facilities
@@ -121,8 +167,8 @@ async def create_facility(
     """Register a new primary healthcare centre or hospital."""
     facility = HealthFacility(
         lga_id=data.lga_id,
-        name=data.name,
-        code=data.code.upper(),
+        name=data.name.strip(),
+        code=data.code.strip().upper(),
         facility_type=data.facility_type,
         address=data.address,
         phone=data.phone,

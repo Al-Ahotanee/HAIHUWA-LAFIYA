@@ -89,21 +89,35 @@ async def seed_reference_data():
             session.add(org)
             await session.flush()
 
-        # 2. State & LGAs
-        st_res = await session.execute(select(State).where(State.code == "KAN"))
-        kano = st_res.scalar_one_or_none()
-        if not kano:
-            kano = State(name="Kano", code="KAN")
-            session.add(kano)
-            await session.flush()
+        # 2. States & LGAs across Northern Nigeria
+        states_data = [
+            {"name": "Kano", "code": "KAN", "lgas": [("Nasarawa", "NAS"), ("Dala", "DAL")]},
+            {"name": "Kaduna", "code": "KAD", "lgas": [("Kaduna North", "KDN"), ("Zaria", "ZAR")]},
+            {"name": "Katsina", "code": "KAT", "lgas": [("Katsina", "KTS"), ("Daura", "DAU")]},
+            {"name": "Sokoto", "code": "SOK", "lgas": [("Sokoto North", "SKN"), ("Wamako", "WAM")]},
+            {"name": "Jigawa", "code": "JIG", "lgas": [("Dutse", "DUT"), ("Hadejia", "HAD")]},
+            {"name": "Bauchi", "code": "BAU", "lgas": [("Bauchi", "BCH"), ("Katagum", "KTG")]},
+        ]
 
-        lga_res = await session.execute(select(LGA).where(LGA.code == "NAS"))
-        nasarawa_lga = lga_res.scalar_one_or_none()
-        if not nasarawa_lga:
-            nasarawa_lga = LGA(state_id=kano.id, name="Nasarawa", code="NAS")
-            dala_lga = LGA(state_id=kano.id, name="Dala", code="DAL")
-            session.add_all([nasarawa_lga, dala_lga])
-            await session.flush()
+        nasarawa_lga = None
+        for s_item in states_data:
+            s_res = await session.execute(select(State).where(State.code == s_item["code"]))
+            curr_state = s_res.scalar_one_or_none()
+            if not curr_state:
+                curr_state = State(name=s_item["name"], code=s_item["code"])
+                session.add(curr_state)
+                await session.flush()
+
+            for lga_name, lga_code in s_item["lgas"]:
+                l_res = await session.execute(select(LGA).where(LGA.code == lga_code))
+                curr_lga = l_res.scalar_one_or_none()
+                if not curr_lga:
+                    curr_lga = LGA(state_id=curr_state.id, name=lga_name, code=lga_code)
+                    session.add(curr_lga)
+                    await session.flush()
+                if lga_code == "NAS":
+                    nasarawa_lga = curr_lga
+
 
         # 3. Wards
         w_res = await session.execute(select(Ward).where(Ward.code == "GWG"))

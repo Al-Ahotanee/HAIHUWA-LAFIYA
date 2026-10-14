@@ -7,6 +7,11 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class StateCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100)
+    code: str = Field(..., min_length=2, max_length=10)
+
+
 class StateResponse(BaseModel):
     id: uuid.UUID
     name: str
@@ -45,6 +50,21 @@ class WardResponse(BaseModel):
     lga_id: uuid.UUID
     name: str
     code: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CommunityCreate(BaseModel):
+    ward_id: uuid.UUID
+    name: str = Field(..., min_length=2, max_length=100)
+
+
+class CommunityResponse(BaseModel):
+    id: uuid.UUID
+    ward_id: uuid.UUID
+    name: str
     created_at: datetime
 
     class Config:

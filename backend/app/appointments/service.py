@@ -1,4 +1,4 @@
-"""Appointments service: scheduling, attendance recording, and missed visit detection."""
+"""Appointments service: scheduling, attendance recording, incentive triggering, and missed visit detection."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.appointments.schemas import AppointmentCreate, AppointmentResponse, AppointmentUpdate, FollowupCreate, MissedAppointmentItem
 from app.auth.models import User
-from app.common.enums import AppointmentStatus
+from app.common.enums import AppointmentStatus, ClaimStatus
 from app.common.pagination import paginate
 from app.common.schemas import PaginatedResponse, PaginationParams
 from app.exceptions import BusinessRuleError, NotFoundError
-from app.models import Appointment, AppointmentFollowup, HealthFacility, Mother, Pregnancy
+from app.models import Appointment, AppointmentFollowup, HealthFacility, IncentiveClaim, IncentiveRule, Mother, Pregnancy
 
 
 class AppointmentService:
@@ -62,6 +62,45 @@ class AppointmentService:
         if notes:
             appointment.notes = (appointment.notes or "") + "\n" + notes
         appointment.updated_at = datetime.now(timezone.utc)
+
+        # Count attended ANC visits for this pregnancy to auto-trigger ANC-4 milestone
+        attended_count_res = await self.db.execute(
+            select(func.count(Appointment.id)).where(
+                Appointment.pregnancy_id == appointment.pregnancy_id,
+                Appointment.visit_type == "anc",
+                Appointment.status == AppointmentStatus.ATTENDED.value,
+            )
+        )
+        attended_count = attended_count_res.scalar_one()
+
+        if attended_count >= 4:
+            # Check if ANC4 rule exists and if claim has already been filed
+            rule_res = await self.db.execute(
+                select(IncentiveRule).where(IncentiveRule.trigger_event == "anc_milestone_4", IncentiveRule.is_active == True)
+            )
+            rule = rule_res.scalars().first()
+            if rule:
+                existing_claim = await self.db.execute(
+                    select(IncentiveClaim).where(
+                        IncentiveClaim.pregnancy_id == appointment.pregnancy_id,
+                        IncentiveClaim.rule_id == rule.id,
+                    )
+                )
+                if not existing_claim.scalar_one_or_none():
+                    # Fetch pregnancy to get mother_id
+                    preg = (await self.db.execute(select(Pregnancy).where(Pregnancy.id == appointment.pregnancy_id))).scalar_one()
+                    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+                    count_claims = (await self.db.execute(select(func.count(IncentiveClaim.id)))).scalar_one() + 1
+                    new_claim = IncentiveClaim(
+                        claim_reference=f"CLM-{date_str}-{count_claims:04d}",
+                        rule_id=rule.id,
+                        mother_id=preg.mother_id,
+                        pregnancy_id=preg.id,
+                        amount=rule.amount,
+                        status=ClaimStatus.PENDING.value,
+                        submitted_by_id=current_user.id,
+                    )
+                    self.db.add(new_claim)
 
         await self.db.commit()
         await self.db.refresh(appointment)
@@ -129,4 +168,3 @@ class AppointmentService:
         if visit_type:
             query = query.where(Appointment.visit_type == visit_type)
         return await paginate(self.db, query, params, response_model=AppointmentResponse)
-

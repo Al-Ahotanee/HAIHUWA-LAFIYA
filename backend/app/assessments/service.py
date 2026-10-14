@@ -1,4 +1,4 @@
-"""Clinical assessment business service."""
+"""Clinical assessment business service with MEOWS obstetric scoring and risk triage."""
 
 from __future__ import annotations
 
@@ -15,6 +15,62 @@ from app.exceptions import NotFoundError
 from app.models import ClinicalAssessment, DangerSign, LabResult, Pregnancy
 
 
+def calculate_meows(
+    systolic_bp: int | None,
+    diastolic_bp: int | None,
+    temp_c: float | None,
+    fhr: int | None,
+    has_danger_signs: bool,
+) -> tuple[int, str]:
+    """
+    Compute Modified Early Obstetric Warning Score (MEOWS):
+    Score: 0 (Normal), 1-2 (Observation / Amber), >=3 (Critical Alert / Red).
+    """
+    score = 0
+    # Systolic BP
+    if systolic_bp:
+        if systolic_bp >= 160 or systolic_bp <= 90:
+            score += 3
+        elif systolic_bp >= 140:
+            score += 2
+        elif systolic_bp >= 130:
+            score += 1
+
+    # Diastolic BP
+    if diastolic_bp:
+        if diastolic_bp >= 110 or diastolic_bp <= 50:
+            score += 3
+        elif diastolic_bp >= 90:
+            score += 2
+        elif diastolic_bp >= 80:
+            score += 1
+
+    # Temperature
+    if temp_c:
+        if temp_c >= 38.5 or temp_c <= 35.0:
+            score += 3
+        elif temp_c >= 37.8 or temp_c <= 35.9:
+            score += 2
+
+    # Fetal Heart Rate
+    if fhr:
+        if fhr < 110 or fhr > 160:
+            score += 2
+
+    # Any danger signs add immediate critical weighting
+    if has_danger_signs:
+        score += 3
+
+    if score >= 3:
+        status_flag = "emergency_escalation"
+    elif score >= 1:
+        status_flag = "observation_required"
+    else:
+        status_flag = "routine_normal"
+
+    return score, status_flag
+
+
 class ClinicalAssessmentService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -25,8 +81,27 @@ class ClinicalAssessmentService:
         current_user: User,
     ) -> ClinicalAssessment:
         preg_res = await self.db.execute(select(Pregnancy).where(Pregnancy.id == data.pregnancy_id))
-        if not preg_res.scalar_one_or_none():
+        pregnancy = preg_res.scalar_one_or_none()
+        if not pregnancy:
             raise NotFoundError("Pregnancy", str(data.pregnancy_id))
+
+        has_danger_signs = len(data.danger_signs) > 0
+        meows_score, triage_status = calculate_meows(
+            data.systolic_bp,
+            data.diastolic_bp,
+            data.temperature_c,
+            data.fetal_heart_rate,
+            has_danger_signs,
+        )
+
+        # Append MEOWS scoring to clinical notes automatically
+        meows_note = f"[MEOWS Obstetric Triage: Score {meows_score} -> Tier: {triage_status.upper().replace('_', ' ')}]"
+        notes = f"{meows_note} {data.clinical_notes or ''}".strip()
+
+        # If MEOWS >= 3, automatically elevate pregnancy to high risk
+        if meows_score >= 3 and not pregnancy.is_high_risk:
+            pregnancy.is_high_risk = True
+            pregnancy.high_risk_reasons = f"MEOWS Alert (Score: {meows_score}): Hypertensive/Febrile risk detected during assessment."
 
         assessment = ClinicalAssessment(
             appointment_id=data.appointment_id,
@@ -47,7 +122,7 @@ class ClinicalAssessmentService:
             ipt_given=data.ipt_given,
             tetanus_dose=data.tetanus_dose,
             deworming_given=data.deworming_given,
-            clinical_notes=data.clinical_notes,
+            clinical_notes=notes,
             assessed_by_id=current_user.id,
         )
         self.db.add(assessment)
@@ -116,4 +191,3 @@ class ClinicalAssessmentService:
             .order_by(ClinicalAssessment.assessment_date.desc())
         )
         return await paginate(self.db, query, params, response_model=ClinicalAssessmentResponse)
-
