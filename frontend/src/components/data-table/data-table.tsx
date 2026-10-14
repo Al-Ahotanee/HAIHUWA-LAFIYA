@@ -30,7 +30,9 @@ interface DataTableProps<T> {
   data: T[];
   isLoading?: boolean;
   total?: number;
+  totalItems?: number;
   page?: number;
+  currentPage?: number;
   pageSize?: number;
   pages?: number;
   onPageChange?: (page: number) => void;
@@ -41,6 +43,7 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   emptyTitle?: string;
   emptyDescription?: string;
+  emptyMessage?: string;
   emptyActionLabel?: string;
   onEmptyAction?: () => void;
   className?: string;
@@ -51,7 +54,9 @@ export function DataTable<T extends { id?: string | number }>({
   data,
   isLoading = false,
   total,
+  totalItems,
   page,
+  currentPage,
   pageSize,
   pages,
   onPageChange,
@@ -62,10 +67,16 @@ export function DataTable<T extends { id?: string | number }>({
   onRowClick,
   emptyTitle = 'No records found',
   emptyDescription = 'There are no items to display in this list.',
+  emptyMessage,
   emptyActionLabel,
   onEmptyAction,
   className,
 }: DataTableProps<T>) {
+  const resolvedTotal = total ?? totalItems;
+  const resolvedPage = page ?? currentPage;
+  const resolvedEmptyTitle = emptyMessage || emptyTitle;
+  const resolvedPages = pages ?? (resolvedTotal !== undefined && pageSize ? Math.max(1, Math.ceil(resolvedTotal / pageSize)) : undefined);
+
   const [internalSortBy, setInternalSortBy] = useState<string | undefined>(sortBy);
   const [internalSortOrder, setInternalSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -138,7 +149,7 @@ export function DataTable<T extends { id?: string | number }>({
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-48 text-center">
                   <EmptyState
-                    title={emptyTitle}
+                    title={resolvedEmptyTitle}
                     description={emptyDescription}
                     actionLabel={emptyActionLabel}
                     onAction={onEmptyAction}
@@ -173,16 +184,16 @@ export function DataTable<T extends { id?: string | number }>({
         </Table>
       </div>
 
-      {total !== undefined &&
-        page !== undefined &&
+      {resolvedTotal !== undefined &&
+        resolvedPage !== undefined &&
         pageSize !== undefined &&
-        pages !== undefined &&
+        resolvedPages !== undefined &&
         onPageChange && (
           <Pagination
-            total={total}
-            page={page}
+            total={resolvedTotal}
+            page={resolvedPage}
             pageSize={pageSize}
-            pages={pages}
+            pages={resolvedPages}
             onPageChange={onPageChange}
             onPageSizeChange={onPageSizeChange}
           />

@@ -149,12 +149,13 @@ export default function LaborandDeliveryPage() {
           <DataTable
             columns={columns}
             data={data?.items || []}
-            totalItems={data?.total || 0}
+            total={data?.total || 0}
             pageSize={15}
-            currentPage={page}
+            page={page}
+            pages={data?.pages}
             onPageChange={setPage}
             isLoading={isLoading}
-            emptyMessage="No delivery records found in the system."
+            emptyTitle="No delivery records found in the system."
           />
         </CardContent>
       </Card>

@@ -141,12 +141,13 @@ export default function ClinicalAssessmentsPage() {
           <DataTable
             columns={columns}
             data={data?.items || []}
-            totalItems={data?.total || 0}
+            total={data?.total || 0}
             pageSize={15}
-            currentPage={page}
+            page={page}
+            pages={data?.pages}
             onPageChange={setPage}
             isLoading={isLoading}
-            emptyMessage="No clinical assessments recorded."
+            emptyTitle="No clinical assessments recorded."
           />
         </CardContent>
       </Card>

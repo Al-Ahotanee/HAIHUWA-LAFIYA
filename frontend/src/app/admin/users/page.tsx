@@ -114,11 +114,11 @@ export default function UserManagementPage() {
           <DataTable
             columns={columns}
             data={usersList}
-            totalItems={usersList.length}
+            total={usersList.length}
             pageSize={20}
-            currentPage={1}
+            page={1}
             isLoading={isLoading}
-            emptyMessage="No personnel registered."
+            emptyTitle="No personnel registered."
           />
         </CardContent>
       </Card>
