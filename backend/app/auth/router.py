@@ -71,3 +71,14 @@ async def list_users(
     users = result.scalars().all()
     return [UserResponse.model_validate(u) for u in users]
 
+
+@router.post("/seed-data")
+async def trigger_seed(
+    _current_user: Annotated[User, Depends(require_roles([UserRole.SUPER_ADMIN]))],
+):
+    """Admin endpoint to ensure all reference data and initial clinical test records are populated."""
+    from app.seeds import seed_reference_data
+    await seed_reference_data()
+    return {"status": "success", "message": "Reference data and clinical records seeded successfully."}
+
+

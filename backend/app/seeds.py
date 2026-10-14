@@ -199,8 +199,16 @@ async def seed_reference_data():
         # Ensure health facilities and locations are reliably fetched
         phc = (await session.execute(select(HealthFacility).where(HealthFacility.code == "PHC-GWG"))).scalars().first()
         gh = (await session.execute(select(HealthFacility).where(HealthFacility.code == "SSH-KAN"))).scalars().first()
-        nasarawa_lga = (await session.execute(select(LGA).where(LGA.code == "KAN-NAS"))).scalars().first()
-        ward1 = (await session.execute(select(Ward).where(Ward.code == "NAS-GWG"))).scalars().first()
+        nasarawa_lga = (await session.execute(select(LGA).where(LGA.code == "NAS"))).scalars().first()
+        ward1 = (await session.execute(select(Ward).where(Ward.code == "GWG"))).scalars().first()
+
+        if not nasarawa_lga:
+            nasarawa_lga = (await session.execute(select(LGA))).scalars().first()
+        if not ward1:
+            ward1 = (await session.execute(select(Ward))).scalars().first()
+        if not phc:
+            phc = (await session.execute(select(HealthFacility))).scalars().first()
+
 
         m_res = await session.execute(select(Mother))
         existing_mothers = m_res.scalars().all()
