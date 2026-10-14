@@ -20,7 +20,7 @@ from app.incentives.router import router as incentives_router
 from app.mothers.router import router as mothers_router
 from app.pregnancies.router import router as pregnancies_router
 from app.referrals.router import router as referrals_router
-from app.reports.router import router as reports_router
+from app.reports.router import router as reports_router, dashboard_router
 
 
 from app.database import Base, engine
@@ -104,6 +104,7 @@ def create_app() -> FastAPI:
     app.include_router(deliveries_router, prefix="/api/v1")
     app.include_router(incentives_router, prefix="/api/v1")
     app.include_router(reports_router, prefix="/api/v1")
+    app.include_router(dashboard_router, prefix="/api/v1")
 
     return app
 
