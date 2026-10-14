@@ -27,19 +27,11 @@ def _normalize_database_url(url: str) -> tuple[str, dict]:
         return url, {}
 
     u = urllib.parse.urlsplit(url)
-    q = urllib.parse.parse_qs(u.query)
 
-    # Strip query parameters that cause psycopg/asyncpg driver confusion
-    filtered_q = {
-        k: v
-        for k, v in q.items()
-        if k.lower() not in ("ssl", "sslmode", "target_session_attrs")
-    }
-    new_query = urllib.parse.urlencode(filtered_q, doseq=True)
-
-    # Ensure postgresql+asyncpg driver scheme
-    new_u = u._replace(scheme="postgresql+asyncpg", query=new_query)
-    clean_url = urllib.parse.urlunsplit(new_u)
+    # Completely remove query parameters (such as ?sslmode=require&channel_binding=require)
+    # which asyncpg rejects as invalid keyword arguments to connect()
+    clean_u = u._replace(scheme="postgresql+asyncpg", query="")
+    clean_url = urllib.parse.urlunsplit(clean_u)
 
     connect_args = {
         "ssl": "require",
