@@ -15,31 +15,48 @@ from sqlalchemy.orm import DeclarativeBase
 from app.config import get_settings
 
 
-def _normalize_database_url(url: str) -> str:
+import urllib.parse
+
+
+def _normalize_database_url(url: str) -> tuple[str, dict]:
     """Normalize database connection string to ensure asyncpg or aiosqlite driver."""
     if not url:
-        return url
+        return url, {}
 
-    # If scheme starts with postgresql:// or postgres://, ensure postgresql+asyncpg://
-    if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
-    elif url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    elif url.startswith("postgresql+psycopg://"):
-        # If user supplied psycopg in DATABASE_URL, convert to asyncpg for async engine
-        url = url.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
+    if "sqlite" in url:
+        return url, {}
 
-    # Ensure ssl=require rather than sslmode=require for asyncpg
-    if "sslmode=require" in url:
-        url = url.replace("sslmode=require", "ssl=require")
+    u = urllib.parse.urlsplit(url)
+    q = urllib.parse.parse_qs(u.query)
 
-    return url
+    # Strip query parameters that cause psycopg/asyncpg driver confusion
+    filtered_q = {
+        k: v
+        for k, v in q.items()
+        if k.lower() not in ("ssl", "sslmode", "target_session_attrs")
+    }
+    new_query = urllib.parse.urlencode(filtered_q, doseq=True)
+
+    # Ensure postgresql+asyncpg driver scheme
+    new_u = u._replace(scheme="postgresql+asyncpg", query=new_query)
+    clean_url = urllib.parse.urlunsplit(new_u)
+
+    connect_args = {
+        "ssl": "require",
+        "timeout": 15,
+        "statement_cache_size": 0,  # Required for asyncpg with Neon/PgBouncer
+        "server_settings": {
+            "application_name": "haihuwa_lafiya",
+        },
+    }
+
+    return clean_url, connect_args
 
 
 def _build_engine():
     """Create the async engine with Neon-optimised settings or SQLite dev fallback."""
     settings = get_settings()
-    db_url = _normalize_database_url(settings.DATABASE_URL)
+    db_url, connect_args = _normalize_database_url(settings.DATABASE_URL)
 
     # If running with SQLite in local tests/dev
     if "sqlite" in db_url:
@@ -47,23 +64,6 @@ def _build_engine():
             db_url,
             echo=(settings.ENVIRONMENT == "development"),
         )
-
-    # If psycopg is somehow used
-    is_asyncpg = "asyncpg" in db_url
-
-    connect_args = {
-        "timeout": 15,
-    }
-
-    if is_asyncpg:
-        connect_args["ssl"] = "require"
-        connect_args["statement_cache_size"] = 0  # Required for asyncpg + PgBouncer
-        connect_args["server_settings"] = {
-            "application_name": "haihuwa_lafiya",
-        }
-    else:
-        # psycopg syntax
-        connect_args["sslmode"] = "require"
 
     return create_async_engine(
         db_url,
