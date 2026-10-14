@@ -66,11 +66,13 @@ async def list_mothers(
 ) -> PaginatedResponse[MotherResponse]:
     """List registered mothers scoped by geographic authorization."""
     service = MotherService(db)
+    ward_filter = current_user.ward_id if current_user.role == UserRole.CHW.value else None
+    lga_filter = current_user.lga_id if current_user.role == UserRole.LGA_COORDINATOR.value else None
     return await service.list_mothers(
         params,
         search=search,
-        ward_id=current_user.ward_id,
-        lga_id=current_user.lga_id,
+        ward_id=ward_filter,
+        lga_id=lga_filter,
     )
 
 

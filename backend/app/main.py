@@ -18,6 +18,7 @@ from app.deliveries.router import router as deliveries_router
 from app.exceptions import AppException, app_exception_handler
 from app.incentives.router import router as incentives_router
 from app.mothers.router import router as mothers_router
+from app.organisations.router import router as organisations_router
 from app.pregnancies.router import router as pregnancies_router
 from app.referrals.router import router as referrals_router
 from app.reports.router import router as reports_router, dashboard_router
@@ -103,6 +104,7 @@ def create_app() -> FastAPI:
     app.include_router(referrals_router, prefix="/api/v1")
     app.include_router(deliveries_router, prefix="/api/v1")
     app.include_router(incentives_router, prefix="/api/v1")
+    app.include_router(organisations_router, prefix="/api/v1")
     app.include_router(reports_router, prefix="/api/v1")
     app.include_router(dashboard_router, prefix="/api/v1")
 
