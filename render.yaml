@@ -1,16 +1,15 @@
 # yaml-language-server: $schema=https://render.com/schema/render.yaml.json
 services:
   # ============================================================================
-  # BACKEND SERVICE (Python / FastAPI)
+  # BACKEND SERVICE (Python / FastAPI) — 100% FREE TIER
   # ============================================================================
   - type: web
     name: haihuwa-backend
     runtime: python
     region: frankfurt
-    plan: starter
+    plan: free
     rootDir: backend
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    preDeployCommand: alembic upgrade head
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     autoDeployTrigger: commit
@@ -31,7 +30,7 @@ services:
         value: haihuwa-backend.onrender.com
 
   # ============================================================================
-  # FRONTEND SERVICE (Next.js Static Export / SPA)
+  # FRONTEND SERVICE (Next.js Static Export / SPA) — 100% FREE STATIC TIER
   # ============================================================================
   - type: web
     name: haihuwa-frontend

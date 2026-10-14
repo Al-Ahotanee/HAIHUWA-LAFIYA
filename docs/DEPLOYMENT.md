@@ -80,18 +80,16 @@ Click **Apply**.
 
 Once you click **Apply**, Render executes the deployment pipeline automatically:
 
-### Backend Deployment Sequence:
+### Backend Deployment Sequence (Free Tier):
 1. Installs Python 3.12 dependencies (`pip install -r requirements.txt`).
-2. Runs the `preDeployCommand`:
-   ```bash
-   alembic upgrade head
-   ```
-   *(Alembic connects directly via `DATABASE_URL_DIRECT` with `NullPool` to safely execute DDL).*
-3. Starts the ASGI server:
+2. Starts the ASGI server on Render's Free Instance:
    ```bash
    uvicorn app.main:app --host 0.0.0.0 --port $PORT
    ```
-4. Render checks the health endpoint `/health` before routing live internet traffic.
+3. Render checks the health endpoint `/health` before routing live internet traffic.
+
+> **Note on Render Free Tier:**
+> On Render's Free web service plan, `preDeployCommand` is disabled by Render. Migrations and initial seeds can be run either locally against the Neon direct connection or triggered via one-time commands.
 
 ### Frontend Deployment Sequence:
 1. Installs Node.js dependencies (`npm install`).
