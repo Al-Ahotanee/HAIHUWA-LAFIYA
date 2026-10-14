@@ -11,7 +11,9 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.models import User
 from app.common.enums import PregnancyStatus
-from app.deliveries.schemas import DeliveryCreate
+from app.common.pagination import paginate
+from app.common.schemas import PaginatedResponse, PaginationParams
+from app.deliveries.schemas import DeliveryCreate, DeliveryResponse
 from app.exceptions import BusinessRuleError, NotFoundError
 from app.models import Delivery, DeliveryComplication, Mother, Newborn, Pregnancy
 
@@ -89,3 +91,11 @@ class DeliveryService:
         )
         res = await self.db.execute(query)
         return res.scalar_one()
+
+    async def list_deliveries(
+        self,
+        params: PaginationParams,
+    ) -> PaginatedResponse[DeliveryResponse]:
+        query = select(Delivery).options(selectinload(Delivery.newborns)).order_by(Delivery.delivery_date.desc())
+        return await paginate(self.db, query, params, response_model=DeliveryResponse)
+

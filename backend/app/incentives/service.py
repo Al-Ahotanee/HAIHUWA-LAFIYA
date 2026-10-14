@@ -10,8 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.common.enums import ClaimStatus, PaymentStatus
+from app.common.pagination import paginate
+from app.common.schemas import PaginatedResponse, PaginationParams
 from app.exceptions import BusinessRuleError, DuplicateError, NotFoundError
-from app.incentives.schemas import IncentiveClaimCreate, IncentivePaymentRecord
+from app.incentives.schemas import IncentiveClaimCreate, IncentiveClaimResponse, IncentivePaymentRecord
 from app.models import IncentiveClaim, IncentivePayment, IncentiveRule, Mother, Pregnancy
 
 
@@ -110,3 +112,15 @@ class IncentiveService:
         await self.db.commit()
         await self.db.refresh(payment)
         return payment
+
+    async def list_claims(
+        self,
+        params: PaginationParams,
+        *,
+        status: str | None = None,
+    ) -> PaginatedResponse[IncentiveClaimResponse]:
+        query = select(IncentiveClaim).order_by(IncentiveClaim.created_at.desc())
+        if status:
+            query = query.where(IncentiveClaim.status == status)
+        return await paginate(self.db, query, params, response_model=IncentiveClaimResponse)
+

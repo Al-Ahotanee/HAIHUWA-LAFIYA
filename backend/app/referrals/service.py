@@ -10,9 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.common.enums import ReferralStatus
+from app.common.pagination import paginate
+from app.common.schemas import PaginatedResponse, PaginationParams
 from app.exceptions import NotFoundError
 from app.models import HealthFacility, Pregnancy, Referral, ReferralUpdate
-from app.referrals.schemas import ReferralCreate, ReferralStatusUpdate
+from app.referrals.schemas import ReferralCreate, ReferralResponse, ReferralStatusUpdate
 
 
 class ReferralService:
@@ -72,3 +74,18 @@ class ReferralService:
         await self.db.commit()
         await self.db.refresh(referral)
         return referral
+
+    async def list_referrals(
+        self,
+        params: PaginationParams,
+        *,
+        status: str | None = None,
+        urgency: str | None = None,
+    ) -> PaginatedResponse[ReferralResponse]:
+        query = select(Referral).order_by(Referral.created_at.desc())
+        if status:
+            query = query.where(Referral.status == status)
+        if urgency:
+            query = query.where(Referral.urgency == urgency)
+        return await paginate(self.db, query, params, response_model=ReferralResponse)
+

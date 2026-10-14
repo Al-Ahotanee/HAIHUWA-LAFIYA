@@ -7,7 +7,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user
+from sqlalchemy import select
+from app.auth.dependencies import get_current_user, require_roles
+from app.common.enums import UserRole
 from app.auth.models import User
 from app.auth.schemas import LoginRequest, TokenRefreshRequest, TokenResponse, UserResponse
 from app.auth.service import AuthService
@@ -57,3 +59,15 @@ async def get_me(
 ) -> UserResponse:
     """Get current authenticated user profile."""
     return UserResponse.model_validate(current_user)
+
+
+@router.get("/users", response_model=list[UserResponse])
+async def list_users(
+    _current_user: Annotated[User, Depends(require_roles([UserRole.SUPER_ADMIN, UserRole.PROGRAMME_MANAGER, UserRole.DATA_OFFICER]))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[UserResponse]:
+    """List all system users for administrative management."""
+    result = await db.execute(select(User).order_by(User.full_name))
+    users = result.scalars().all()
+    return [UserResponse.model_validate(u) for u in users]
+

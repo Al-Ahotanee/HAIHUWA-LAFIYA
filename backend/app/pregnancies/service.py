@@ -98,3 +98,18 @@ class PregnancyService:
         await self.db.commit()
         await self.db.refresh(pregnancy)
         return pregnancy
+
+    async def list_pregnancies(
+        self,
+        params: PaginationParams,
+        *,
+        status: str | None = None,
+        is_high_risk: bool | None = None,
+    ) -> PaginatedResponse[PregnancyResponse]:
+        query = select(Pregnancy).order_by(Pregnancy.created_at.desc())
+        if status:
+            query = query.where(Pregnancy.status == status)
+        if is_high_risk is not None:
+            query = query.where(Pregnancy.is_high_risk == is_high_risk)
+        return await paginate(self.db, query, params, response_model=PregnancyResponse)
+

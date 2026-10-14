@@ -8,14 +8,26 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import require_roles
+from app.auth.dependencies import get_current_user, require_roles
 from app.auth.models import User
 from app.common.enums import UserRole
+from app.common.schemas import PaginatedResponse, PaginationParams
 from app.database import get_db
 from app.deliveries.schemas import DeliveryCreate, DeliveryResponse
 from app.deliveries.service import DeliveryService
 
 router = APIRouter(prefix="/deliveries", tags=["Deliveries"])
+
+
+@router.get("", response_model=PaginatedResponse[DeliveryResponse])
+async def list_deliveries(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    params: PaginationParams = Depends(),
+) -> PaginatedResponse[DeliveryResponse]:
+    """List recorded deliveries with newborn summaries."""
+    service = DeliveryService(db)
+    return await service.list_deliveries(params)
 
 
 @router.post("", response_model=DeliveryResponse, status_code=status.HTTP_201_CREATED)

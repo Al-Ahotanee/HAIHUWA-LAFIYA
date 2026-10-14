@@ -9,6 +9,8 @@ from sqlalchemy.orm import selectinload
 
 from app.assessments.schemas import ClinicalAssessmentCreate, ClinicalAssessmentResponse
 from app.auth.models import User
+from app.common.pagination import paginate
+from app.common.schemas import PaginatedResponse, PaginationParams
 from app.exceptions import NotFoundError
 from app.models import ClinicalAssessment, DangerSign, LabResult, Pregnancy
 
@@ -100,3 +102,18 @@ class ClinicalAssessmentService:
         )
         res = await self.db.execute(query)
         return list(res.scalars().all())
+
+    async def list_all_assessments(
+        self,
+        params: PaginationParams,
+    ) -> PaginatedResponse[ClinicalAssessmentResponse]:
+        query = (
+            select(ClinicalAssessment)
+            .options(
+                selectinload(ClinicalAssessment.danger_signs),
+                selectinload(ClinicalAssessment.lab_results),
+            )
+            .order_by(ClinicalAssessment.assessment_date.desc())
+        )
+        return await paginate(self.db, query, params, response_model=ClinicalAssessmentResponse)
+

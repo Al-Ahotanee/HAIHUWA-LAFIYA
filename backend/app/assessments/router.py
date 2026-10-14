@@ -13,9 +13,21 @@ from app.assessments.service import ClinicalAssessmentService
 from app.auth.dependencies import get_current_user, require_roles
 from app.auth.models import User
 from app.common.enums import UserRole
+from app.common.schemas import PaginatedResponse, PaginationParams
 from app.database import get_db
 
 router = APIRouter(prefix="/assessments", tags=["Clinical Assessments"])
+
+
+@router.get("", response_model=PaginatedResponse[ClinicalAssessmentResponse])
+async def list_all_assessments(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    params: PaginationParams = Depends(),
+) -> PaginatedResponse[ClinicalAssessmentResponse]:
+    """Retrieve all clinical assessments with pagination."""
+    service = ClinicalAssessmentService(db)
+    return await service.list_all_assessments(params)
 
 
 @router.post("", response_model=ClinicalAssessmentResponse, status_code=status.HTTP_201_CREATED)

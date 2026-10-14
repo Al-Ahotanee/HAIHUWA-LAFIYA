@@ -8,9 +8,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import require_roles
+from app.auth.dependencies import get_current_user, require_roles
 from app.auth.models import User
 from app.common.enums import UserRole
+from app.common.schemas import PaginatedResponse, PaginationParams
 from app.database import get_db
 from app.incentives.schemas import (
     IncentiveClaimCreate,
@@ -21,6 +22,18 @@ from app.incentives.schemas import (
 from app.incentives.service import IncentiveService
 
 router = APIRouter(prefix="/incentives", tags=["Incentives & Disbursements"])
+
+
+@router.get("/claims", response_model=PaginatedResponse[IncentiveClaimResponse])
+async def list_claims(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    params: PaginationParams = Depends(),
+    status: str | None = None,
+) -> PaginatedResponse[IncentiveClaimResponse]:
+    """List incentive claims with pagination and status filters."""
+    service = IncentiveService(db)
+    return await service.list_claims(params, status=status)
 
 
 @router.post("/claims", response_model=IncentiveClaimResponse, status_code=status.HTTP_201_CREATED)

@@ -1,15 +1,110 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { EmptyState } from '@/components/shared/empty-state';
-import { Stethoscope, Search, Plus, Filter, Download } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { DataTable, ColumnDef } from '@/components/data-table/data-table';
+import { api } from '@/lib/api-client';
+import { Stethoscope, Download, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+
+interface AssessmentItem {
+  id: string;
+  pregnancy_id: string;
+  assessment_date: string;
+  systolic_bp?: number;
+  diastolic_bp?: number;
+  weight_kg?: number;
+  fundal_height_cm?: number;
+  fetal_heart_rate?: number;
+  gestational_age_weeks?: number;
+  clinical_notes?: string;
+  created_at: string;
+}
+
+interface AssessmentListResponse {
+  items: AssessmentItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
 
 export default function ClinicalAssessmentsPage() {
   const router = useRouter();
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading } = useQuery<AssessmentListResponse>({
+    queryKey: ['clinical-assessments', page],
+    queryFn: () =>
+      api.get<AssessmentListResponse>('/api/v1/assessments', {
+        page,
+        page_size: 15,
+      }),
+  });
+
+  const columns: ColumnDef<AssessmentItem>[] = [
+    {
+      header: 'Assessment Date',
+      accessorKey: 'assessment_date',
+      cell: (row) => (
+        <span className="font-medium text-foreground text-sm">
+          {new Date(row.assessment_date).toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          })}
+        </span>
+      ),
+    },
+    {
+      header: 'Blood Pressure',
+      cell: (row) => {
+        const isHigh = (row.systolic_bp && row.systolic_bp >= 140) || (row.diastolic_bp && row.diastolic_bp >= 90);
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-sm">
+              {row.systolic_bp && row.diastolic_bp ? `${row.systolic_bp}/${row.diastolic_bp} mmHg` : '—'}
+            </span>
+            {isHigh && <Badge variant="destructive" className="text-[10px] px-1 py-0">High</Badge>}
+          </div>
+        );
+      },
+    },
+    {
+      header: 'Weight',
+      accessorKey: 'weight_kg',
+      cell: (row) => <span className="text-sm">{row.weight_kg ? `${row.weight_kg} kg` : '—'}</span>,
+    },
+    {
+      header: 'Fundal Ht / FHR',
+      cell: (row) => (
+        <span className="text-sm">
+          {row.fundal_height_cm ? `${row.fundal_height_cm}cm` : '—'} / {row.fetal_heart_rate ? `${row.fetal_heart_rate}bpm` : '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Gest. Age',
+      accessorKey: 'gestational_age_weeks',
+      cell: (row) => (
+        <span className="text-sm font-medium">
+          {row.gestational_age_weeks ? `${row.gestational_age_weeks} weeks` : '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Clinical Summary',
+      accessorKey: 'clinical_notes',
+      cell: (row) => (
+        <span className="text-xs text-muted-foreground line-clamp-1 max-w-[280px]">
+          {row.clinical_notes || 'Routine checkup recorded.'}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -19,7 +114,7 @@ export default function ClinicalAssessmentsPage() {
             Clinical Assessments
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Vital signs, lab screenings, and clinical triage
+            Vital signs, obstetric measurements, and clinical observations
           </p>
         </div>
 
@@ -28,45 +123,30 @@ export default function ClinicalAssessmentsPage() {
             <Download className="h-4 w-4" />
             <span>Export</span>
           </Button>
-          <Button size="sm" className="gap-1.5" onClick={() => alert('New entry action')}>
+          <Button size="sm" className="gap-1.5" onClick={() => router.push('/pregnancies')}>
             <Plus className="h-4 w-4" />
-            <span>New Record</span>
+            <span>New Assessment</span>
           </Button>
         </div>
       </div>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Filter or search by name, ID, facility..."
-                className="pl-9 h-9"
-              />
-            </div>
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 shrink-0">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span>Filters</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Records Registry</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-semibold">Triage & Examination Registry</CardTitle>
           <CardDescription>
-            Live synchronization active with Neon PostgreSQL backend.
+            Live vital signs and antenatal checkup observations synchronized with database.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <EmptyState
-            icon={Stethoscope}
-            title="No active records to display"
-            description="No records have been filed yet for this clinical queue. Use the action button above to register the first entry."
-            actionLabel="Create First Entry"
-            onAction={() => alert('Create new entry modal')}
+          <DataTable
+            columns={columns}
+            data={data?.items || []}
+            totalItems={data?.total || 0}
+            pageSize={15}
+            currentPage={page}
+            onPageChange={setPage}
+            isLoading={isLoading}
+            emptyMessage="No clinical assessments recorded."
           />
         </CardContent>
       </Card>

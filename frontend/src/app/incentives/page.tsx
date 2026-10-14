@@ -1,15 +1,98 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { EmptyState } from '@/components/shared/empty-state';
-import { Award, Search, Plus, Filter, Download } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { DataTable, ColumnDef } from '@/components/data-table/data-table';
+import { api } from '@/lib/api-client';
+import { Award, Download, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+
+interface IncentiveClaimItem {
+  id: string;
+  claim_reference: string;
+  rule_id: string;
+  mother_id: string;
+  pregnancy_id: string;
+  amount: number | string;
+  status: string;
+  created_at: string;
+}
+
+interface IncentiveListResponse {
+  items: IncentiveClaimItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
 
 export default function MilestoneIncentivesPage() {
   const router = useRouter();
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading } = useQuery<IncentiveListResponse>({
+    queryKey: ['incentive-claims', page],
+    queryFn: () =>
+      api.get<IncentiveListResponse>('/api/v1/incentives/claims', {
+        page,
+        page_size: 15,
+      }),
+  });
+
+  const getStatusBadge = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">Approved</Badge>;
+      case 'paid':
+        return <Badge className="bg-blue-600 text-white hover:bg-blue-700">Paid</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive">Rejected</Badge>;
+      default:
+        return <Badge variant="secondary">Pending Review</Badge>;
+    }
+  };
+
+  const columns: ColumnDef<IncentiveClaimItem>[] = [
+    {
+      header: 'Claim Ref',
+      accessorKey: 'claim_reference',
+      cell: (row) => (
+        <span className="font-mono font-medium text-primary text-xs bg-primary/10 px-2 py-0.5 rounded">
+          {row.claim_reference}
+        </span>
+      ),
+    },
+    {
+      header: 'Subsidy Amount',
+      accessorKey: 'amount',
+      cell: (row) => (
+        <span className="font-semibold text-foreground text-sm">
+          ₦{Number(row.amount).toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      header: 'Claim Status',
+      accessorKey: 'status',
+      cell: (row) => getStatusBadge(row.status),
+    },
+    {
+      header: 'Submitted Date',
+      accessorKey: 'created_at',
+      cell: (row) => (
+        <span className="text-muted-foreground text-xs">
+          {new Date(row.created_at).toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          })}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -28,45 +111,30 @@ export default function MilestoneIncentivesPage() {
             <Download className="h-4 w-4" />
             <span>Export</span>
           </Button>
-          <Button size="sm" className="gap-1.5" onClick={() => alert('New entry action')}>
+          <Button size="sm" className="gap-1.5" onClick={() => router.push('/mothers')}>
             <Plus className="h-4 w-4" />
-            <span>New Record</span>
+            <span>Submit Milestone Claim</span>
           </Button>
         </div>
       </div>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Filter or search by name, ID, facility..."
-                className="pl-9 h-9"
-              />
-            </div>
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 shrink-0">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span>Filters</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Records Registry</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-semibold">Incentive Claims Registry</CardTitle>
           <CardDescription>
-            Live synchronization active with Neon PostgreSQL backend.
+            Live subsidy claims and verified milestone disbursements.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <EmptyState
-            icon={Award}
-            title="No active records to display"
-            description="No records have been filed yet for this clinical queue. Use the action button above to register the first entry."
-            actionLabel="Create First Entry"
-            onAction={() => alert('Create new entry modal')}
+          <DataTable
+            columns={columns}
+            data={data?.items || []}
+            totalItems={data?.total || 0}
+            pageSize={15}
+            currentPage={page}
+            onPageChange={setPage}
+            isLoading={isLoading}
+            emptyMessage="No incentive claims found in the database."
           />
         </CardContent>
       </Card>

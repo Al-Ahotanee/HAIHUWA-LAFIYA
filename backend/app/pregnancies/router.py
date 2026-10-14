@@ -11,11 +11,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user, require_roles
 from app.auth.models import User
 from app.common.enums import UserRole
+from app.common.schemas import PaginatedResponse, PaginationParams
 from app.database import get_db
 from app.pregnancies.schemas import PregnancyCreate, PregnancyResponse, PregnancyUpdate
 from app.pregnancies.service import PregnancyService
 
 router = APIRouter(prefix="/pregnancies", tags=["Pregnancies"])
+
+
+@router.get("", response_model=PaginatedResponse[PregnancyResponse])
+async def list_pregnancies(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    params: PaginationParams = Depends(),
+    status: str | None = None,
+    is_high_risk: bool | None = None,
+) -> PaginatedResponse[PregnancyResponse]:
+    """List all pregnancies with pagination and filters."""
+    service = PregnancyService(db)
+    return await service.list_pregnancies(params, status=status, is_high_risk=is_high_risk)
 
 
 @router.post("", response_model=PregnancyResponse, status_code=status.HTTP_201_CREATED)

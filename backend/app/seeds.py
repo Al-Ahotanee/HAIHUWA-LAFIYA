@@ -190,7 +190,199 @@ async def seed_reference_data():
                 print(f"Updated user password: {u['email']}")
 
         await session.commit()
-        print("\n=== All reference data and user credentials seeded successfully! ===")
+
+        # 7. Seed Sample Clinical Records if not already present
+        from app.models import Mother, Pregnancy, Appointment, ClinicalAssessment, Referral, IncentiveClaim, Delivery, Newborn
+        from app.common.enums import PregnancyStatus, AppointmentStatus, ReferralStatus, ClaimStatus
+        from datetime import date, time, timedelta
+
+        # Ensure health facilities and locations are reliably fetched
+        phc = (await session.execute(select(HealthFacility).where(HealthFacility.code == "PHC-GWG"))).scalars().first()
+        gh = (await session.execute(select(HealthFacility).where(HealthFacility.code == "SSH-KAN"))).scalars().first()
+        nasarawa_lga = (await session.execute(select(LGA).where(LGA.code == "KAN-NAS"))).scalars().first()
+        ward1 = (await session.execute(select(Ward).where(Ward.code == "NAS-GWG"))).scalars().first()
+
+        m_res = await session.execute(select(Mother))
+        existing_mothers = m_res.scalars().all()
+        if not existing_mothers:
+            print("Seeding initial clinical mothers, pregnancies, and routine care encounters...")
+            midwife_user = (await session.execute(select(User).where(User.role == "midwife"))).scalars().first()
+            creator_id = midwife_user.id if midwife_user else user.id
+            rule = (await session.execute(select(IncentiveRule))).scalars().first()
+
+            sample_mothers = [
+                ("Aisha", "Garba", "08023456701", 24, False, "HL-KAN-000001"),
+                ("Hauwa", "Mohammed", "08023456702", 28, True, "HL-KAN-000002"),
+                ("Zubaida", "Suleiman", "08023456703", 21, False, "HL-KAN-000003"),
+                ("Maryam", "Abubakar", "08023456704", 32, True, "HL-KAN-000004"),
+                ("Khadija", "Usman", "08023456705", 19, False, "HL-KAN-000005"),
+            ]
+
+            for first, last, ph, age, high_risk, m_id in sample_mothers:
+                m = Mother(
+                    mother_id=m_id,
+                    first_name=first,
+                    last_name=last,
+                    phone=ph,
+                    age_at_registration=age,
+                    marital_status="married",
+                    education_level="secondary",
+                    occupation="trader",
+                    lga_id=nasarawa_lga.id,
+                    ward_id=ward1.id,
+                    facility_id=phc.id if phc else None,
+                    registered_by_id=creator_id,
+                    is_active=True,
+                )
+                session.add(m)
+                await session.flush()
+
+                lmp = date.today() - timedelta(days=140)
+                edd = lmp + timedelta(days=280)
+                preg = Pregnancy(
+                    mother_id=m.id,
+                    gravida=2,
+                    parity=1,
+                    lmp_date=lmp,
+                    estimated_due_date=edd,
+                    gestational_age_at_registration=12,
+                    status=PregnancyStatus.ACTIVE.value,
+                    is_high_risk=high_risk,
+                    high_risk_reasons="Hypertension history" if high_risk else None,
+                    facility_id=phc.id if phc else None,
+                    registered_by_id=creator_id,
+                )
+                session.add(preg)
+                await session.flush()
+
+                apt = Appointment(
+                    pregnancy_id=preg.id,
+                    facility_id=phc.id if phc else None,
+                    visit_type="anc",
+                    scheduled_date=date.today() + timedelta(days=7),
+                    status=AppointmentStatus.SCHEDULED.value,
+                    created_by_id=creator_id,
+                )
+                session.add(apt)
+                await session.flush()
+
+                assess = ClinicalAssessment(
+                    appointment_id=apt.id,
+                    pregnancy_id=preg.id,
+                    assessment_date=date.today(),
+                    assessed_by_id=creator_id,
+                    gestational_age_weeks=20,
+                    systolic_bp=145 if high_risk else 115,
+                    diastolic_bp=95 if high_risk else 75,
+                    weight_kg=64.5,
+                    fundal_height_cm=20,
+                    fetal_heart_rate=142,
+                    clinical_notes="Patient counselled on nutrition, iron supplements and emergency danger signs.",
+                )
+                session.add(assess)
+
+                if high_risk and gh and phc:
+                    ref = Referral(
+                        pregnancy_id=preg.id,
+                        referring_facility_id=phc.id,
+                        receiving_facility_id=gh.id,
+                        initiated_by_id=creator_id,
+                        reason="Pre-eclampsia emergency escalation",
+                        clinical_findings="Persistent elevated BP (145/95 mmHg) with visual disturbances",
+                        urgency="emergency",
+                        status=ReferralStatus.IN_TRANSIT.value,
+                    )
+                    session.add(ref)
+
+                if rule:
+                    claim = IncentiveClaim(
+                        mother_id=m.id,
+                        rule_id=rule.id,
+                        pregnancy_id=preg.id,
+                        claim_reference=f"CLM-{m_id}",
+                        amount=rule.amount,
+                        status=ClaimStatus.PENDING.value,
+                        submitted_by_id=creator_id,
+                    )
+                    session.add(claim)
+
+            # 8. Seed one completed facility delivery and newborn
+            if phc:
+                delivered_mother = Mother(
+                    mother_id="HL-KAN-000006",
+                    first_name="Fatima",
+                    last_name="Aliyu",
+                    phone="08023456706",
+                    age_at_registration=26,
+                    marital_status="married",
+                    education_level="tertiary",
+                    occupation="teacher",
+                    lga_id=nasarawa_lga.id,
+                    ward_id=ward1.id,
+                    facility_id=phc.id,
+                    registered_by_id=creator_id,
+                    is_active=True,
+                )
+                session.add(delivered_mother)
+                await session.flush()
+
+                deliv_lmp = date.today() - timedelta(days=285)
+                deliv_preg = Pregnancy(
+                    mother_id=delivered_mother.id,
+                    gravida=1,
+                    parity=0,
+                    lmp_date=deliv_lmp,
+                    estimated_due_date=deliv_lmp + timedelta(days=280),
+                    gestational_age_at_registration=8,
+                    status=PregnancyStatus.DELIVERED.value,
+                    is_high_risk=False,
+                    facility_id=phc.id,
+                    registered_by_id=creator_id,
+                    outcome_date=date.today() - timedelta(days=2),
+                )
+                session.add(deliv_preg)
+                await session.flush()
+
+                deliv = Delivery(
+                    pregnancy_id=deliv_preg.id,
+                    facility_id=phc.id,
+                    delivery_date=date.today() - timedelta(days=2),
+                    delivery_time=time(14, 30),
+                    delivery_mode="spontaneous_vaginal",
+                    place_of_delivery="facility",
+                    maternal_outcome="alive_well",
+                    number_of_babies=1,
+                    blood_loss_ml=250,
+                    postpartum_haemorrhage=False,
+                    attended_by_name="Nurse Fatima Bello",
+                    attended_by_cadre="nurse_midwife",
+                    recorded_by_id=creator_id,
+                    notes="Normal spontaneous vaginal delivery without complications.",
+                )
+                session.add(deliv)
+                await session.flush()
+
+                nb = Newborn(
+                    newborn_id="HL-KAN-000006-B1",
+                    delivery_id=deliv.id,
+                    mother_id=delivered_mother.id,
+                    birth_order=1,
+                    first_name="Ibrahim",
+                    sex="male",
+                    birth_weight_grams=3200,
+                    length_cm=50.0,
+                    head_circumference_cm=35.0,
+                    apgar_1min=8,
+                    apgar_5min=9,
+                    apgar_10min=10,
+                    resuscitation_performed=False,
+                )
+                session.add(nb)
+
+            await session.commit()
+            print("Clinical test records, deliveries, and newborns created successfully!")
+
+        print("\n=== All reference data, clinical records, and user credentials seeded successfully! ===")
         print(f"Default password for all accounts: {COMMON_PASSWORD}\n")
 
 

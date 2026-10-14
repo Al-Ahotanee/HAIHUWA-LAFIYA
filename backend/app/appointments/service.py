@@ -115,3 +115,18 @@ class AppointmentService:
         await self.db.commit()
         await self.db.refresh(followup)
         return followup
+
+    async def list_appointments(
+        self,
+        params: PaginationParams,
+        *,
+        status: str | None = None,
+        visit_type: str | None = None,
+    ) -> PaginatedResponse[AppointmentResponse]:
+        query = select(Appointment).order_by(Appointment.scheduled_date.asc())
+        if status:
+            query = query.where(Appointment.status == status)
+        if visit_type:
+            query = query.where(Appointment.visit_type == visit_type)
+        return await paginate(self.db, query, params, response_model=AppointmentResponse)
+

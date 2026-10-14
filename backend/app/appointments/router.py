@@ -20,9 +20,23 @@ from app.appointments.service import AppointmentService
 from app.auth.dependencies import get_current_user, require_roles
 from app.auth.models import User
 from app.common.enums import UserRole
+from app.common.schemas import PaginatedResponse, PaginationParams
 from app.database import get_db
 
 router = APIRouter(prefix="/appointments", tags=["Appointments"])
+
+
+@router.get("", response_model=PaginatedResponse[AppointmentResponse])
+async def list_appointments(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    params: PaginationParams = Depends(),
+    status: str | None = None,
+    visit_type: str | None = None,
+) -> PaginatedResponse[AppointmentResponse]:
+    """List all appointments with pagination and filters."""
+    service = AppointmentService(db)
+    return await service.list_appointments(params, status=status, visit_type=visit_type)
 
 
 @router.post("", response_model=AppointmentResponse, status_code=status.HTTP_201_CREATED)
