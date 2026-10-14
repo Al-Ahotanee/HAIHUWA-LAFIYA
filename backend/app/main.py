@@ -73,9 +73,16 @@ def create_app() -> FastAPI:
     async def global_exception_handler(request, exc):
         logger.error(f"Unhandled server error on {request.method} {request.url.path}: {exc}", exc_info=True)
         from fastapi.responses import JSONResponse
+        origin = request.headers.get("origin")
+        headers = {}
+        if origin and (origin in settings.cors_origin_list or "*" in settings.cors_origin_list):
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "true"
+
         return JSONResponse(
             status_code=500,
             content={"detail": "An internal server error occurred", "code": "INTERNAL_SERVER_ERROR", "error": str(exc)},
+            headers=headers,
         )
 
     # Health check

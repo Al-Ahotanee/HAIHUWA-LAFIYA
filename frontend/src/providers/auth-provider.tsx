@@ -28,7 +28,7 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
-const PUBLIC_PATHS = ['/login', '/forgot-password', '/reset-password'];
+const PUBLIC_PATHS = ['/', '/login', '/forgot-password', '/reset-password'];
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
@@ -111,7 +111,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Unauthenticated Route Protection
   useEffect(() => {
     if (!isLoading) {
-      const isPublicPath = PUBLIC_PATHS.some((path) => pathname?.startsWith(path));
+      const isPublicPath =
+        pathname === '/' ||
+        PUBLIC_PATHS.filter((p) => p !== '/').some((path) => pathname?.startsWith(path));
       if (!user && !isPublicPath) {
         router.push('/login');
       }
